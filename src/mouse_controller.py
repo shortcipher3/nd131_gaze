@@ -1,7 +1,7 @@
 '''
 This is a sample class that you can use to control the mouse pointer.
 It uses the pyautogui library. You can set the precision for mouse movement
-(how much the mouse moves) and the speed (how fast it moves) by changing 
+(how much the mouse moves) and the speed (how fast it moves) by changing
 precision_dict and speed_dict.
 Calling the move function with the x and y output of the gaze estimation model
 will move the pointer.

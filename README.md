@@ -5,6 +5,11 @@
 ## Project Set Up and Installation
 *TODO:* Explain the setup procedures to run your project. For instance, this can include your project directory structure, the models you need to download and where to place them etc. Also include details about how to install the dependencies your project requires.
 
+python3 downloader.py --name face-detection-adas-binary-0001 --precisions=INT8,FP16,FP32,FP32-INT1 -o /workspace/models/
+python3 downloader.py --name head-pose-estimation-adas-0001 --precisions=INT8,FP16,FP32 -o /workspace/models/
+python3 downloader.py --name landmarks-regression-retail-0009 --precisions=INT8,FP16,FP32 -o /workspace/models/
+python3 downloader.py --name gaze-estimation-adas-0002 --precisions=INT8,FP16,FP32 -o /workspace/models/
+
 ## Demo
 *TODO:* Explain how to run a basic demo of your model.
 
@@ -25,3 +30,5 @@ If you have used Async Inference in your code, benchmark the results and explain
 
 ### Edge Cases
 There will be certain situations that will break your inference flow. For instance, lighting changes or multiple people in the frame. Explain some of the edge cases you encountered in your project and how you solved them to make your project more robust.
+
+
