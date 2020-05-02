@@ -1,49 +1,75 @@
 '''
 This class can be used to feed input from an image, webcam, or video to your model.
 Sample usage:
-    feed=InputFeeder(input_type='video', input_file='video.mp4')
-    feed.load_data()
-    for batch in feed.next_batch():
+    feed=InputFeeder('video.mp4')
+    for batch in feed:
         do_something(batch)
     feed.close()
 '''
+
 import cv2
-from numpy import ndarray
 
 class InputFeeder:
-    def __init__(self, input_type, input_file=None):
+    def __init__(self, video_stream):
         '''
         input_type: str, The type of input. Can be 'video' for video file, 'image' for image file,
                     or 'cam' to use webcam feed.
-        input_file: str, The file that contains the input image or video file. Leave empty for cam input_type.
+        video_stream: video file or image file sequence or a capturing device or an IP video stream
+            for video capturing,
+            Can be a path to an mp4 (str), a url (str), a path to an image (str), or a v4l2 device
+            such as a webcam (int - may be represented as string)
         '''
-        self.input_type=input_type
-        if input_type=='video' or input_type=='image':
-            self.input_file=input_file
+        self.video_stream = video_stream
+        try:
+            int(video_stream)
+            vc = cv2.VideoCapture(int(video_stream))
+        except:
+            vc = cv2.VideoCapture(video_stream)
+        self.vc = vc
+        self.frame_count = 0
+        self.frame = None
 
-    def load_data(self):
-        if self.input_type=='video':
-            self.cap=cv2.VideoCapture(self.input_file)
-        elif self.input_type=='cam':
-            self.cap=cv2.VideoCapture(0)
-        else:
-            self.cap=cv2.imread(self.input_file)
-
-    def next_batch(self):
+    def __next__(self):
         '''
         Returns the next image from either a video file or webcam.
         If input_type is 'image', then it returns the same image.
         '''
-        while True:
-            for _ in range(10):
-                _, frame=self.cap.read()
-            yield frame
+        got_flag, frame = self.vc.read()
+        if got_flag:
+            self.frame = frame
+            self.frame_count += 1
+        elif self.frame_count != 1:
+            raise StopIteration()
+        return self.frame
 
+    def __iter__(self):
+        return self
 
     def close(self):
         '''
         Closes the VideoCapture.
         '''
-        if not self.input_type=='image':
-            self.cap.release()
+        self.vc.release()
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Extract n frames from a video source')
+    parser.add_argument('--input',
+                        default='bin/demo.mp4',
+                        type=str,
+                        help='open video file or image file sequence or a capturing device or an IP video stream for video capturing')
+    parser.add_argument('--frames',
+                        default=10,
+                        type=int,
+                        help='number of frames to extract')
+
+    args = parser.parse_args()
+
+    inp = InputFeeder(args.input)
+
+    for k in range(args.frames):
+        frame = next(inp)
+        cv2.imwrite(f'image_{k:03}.png', frame)
+
+
 
