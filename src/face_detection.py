@@ -1,6 +1,12 @@
 '''
-This is a sample class for a model. You may choose to use it as-is or make any changes to it.
-This has been provided just to give you an idea of how to structure your model class.
+This is a class for the face detection model. If using a different model from the default you may
+want to revisit some of the assumptions.
+
+This model can be run independently with the default parameters as:
+python3 src/face_detection.py
+
+To modify the parameters check the help:
+python3 src/face_detection.py --help
 '''
 import time
 import logging
@@ -91,7 +97,7 @@ class FaceDetector:
         t1 = cv2.getTickCount()
         detections = self.exec_net.infer({self.input_blob: batch})
         t2 = cv2.getTickCount()
-        logging.info(f'Time taken to execute face detection model model = {(t2-t1)/cv2.getTickFrequency()} seconds')
+        logging.info(f'Time taken to execute face detection model = {(t2-t1)/cv2.getTickFrequency()} seconds')
         return detections
 
     def preprocess_input(self, image: np.ndarray, width: int=672, height: int=384, preserve_aspect_ratio: bool=False):
@@ -182,6 +188,18 @@ class FaceDetector:
         return detections
 
     def visualize_detections(self, image: np.ndarray, detections: List[Dict[str, Any]]) -> np.ndarray:
+        """
+        Draw the bounding boxes, class labels, and scores onto the image
+
+        Parameters
+        ----------
+            image: the original image
+            detections: the processed detections
+
+        Returns
+        -------
+            visualization: image with detection visualizations
+        """
         img = image.copy()
         for det in detections:
             x_min = int(det['x_min'] * img.shape[1])
@@ -199,10 +217,32 @@ class FaceDetector:
                      cv2.LINE_AA)
         return img
 
+    def crop_face(self, image: np.ndarray, detections: List[Dict[str, Any]]) -> List[np.ndarray]:
+        """
+        Return the cropped face portions of the image
+
+        Parameters
+        ----------
+            image: the original image
+            detections: the processed detections
+
+        Returns
+        -------
+            crops: a list of face crops
+        """
+        face_crops: List[np.ndarray] = []
+        for det in detections:
+            x_min = int(det['x_min'] * img.shape[1])
+            x_max = int(det['x_max'] * img.shape[1])
+            y_min = int(det['y_min'] * img.shape[0])
+            y_max = int(det['y_max'] * img.shape[0])
+            face_crops.append(image[y_min:y_max, x_min:x_max, :].copy())
+        return face_crops
+
 if __name__ == '__main__':
     # parse input arguments
     import argparse
-    parser = argparse.ArgumentParser(description='Use computer vision to control your mouse position with your gaze')
+    parser = argparse.ArgumentParser(description='Detect faces in an image and save the result')
     parser.add_argument('--input',
                         default='data/image_100.png',
                         type=str,
@@ -221,6 +261,10 @@ if __name__ == '__main__':
                         type=str,
                         choices=['debug', 'info', 'warning', 'error', 'critical'],
                         help='the log level, one of debug, info, warning, error, critical')
+    parser.add_argument('--output',
+                        default='output',
+                        type=str,
+                        help='output directory to save results')
 
     args = parser.parse_args()
 
@@ -240,6 +284,8 @@ if __name__ == '__main__':
     dets = face_det.sync_detect(batch)
     detections = face_det.preprocess_output(dets)
     img = face_det.visualize_detections(image, detections)
-    cv2.imwrite('face_det.png', img)
+    cv2.imwrite(f'{args.output}/face_det.png', img)
+    for k, crop in enumerate(face_det.crop_face(image, detections)):
+        cv2.imwrite(f'{args.output}/face_crop_{k}.png', crop)
 
 
