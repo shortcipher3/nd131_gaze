@@ -3,14 +3,16 @@ This is a class for the head pose estimation model. If using a different model f
 want to revisit some of the assumptions.
 
 This model can be run independently with the default parameters as:
-python3 src/face_detection.py
+python3 src/head_pose_estimation.py
+
+python3 src/head_pose_estimation.py --input=data/image_100_face.png --pose=models/intel/head-pose-estimation-adas-0001/FP32/head-pose-estimation-adas-0001 --device=CPU --log-level=info
 
 To modify the parameters check the help:
-python3 src/face_detection.py --help
+python3 src/head_pose_estimation.py --help
 '''
 import time
 import logging
-from typing import Any, Dict, List
+from typing import Dict
 import numpy as np
 import cv2
 from openvino.inference_engine import IECore
@@ -67,11 +69,11 @@ class HeadPoseEstimator:
 
     def async_wait(self, infer_request_handle):
         """
-        Wait for an asynchronous call to finish and return the detections
+        Wait for an asynchronous call to finish and return the estimations
 
         Returns
         -------
-            raw_detections: the network's detections
+            raw_estimations: the network's estimations
         """
         while True:
             status = infer_request_handle.wait(-1)
@@ -79,8 +81,8 @@ class HeadPoseEstimator:
                 break
             else:
                 time.sleep(1)
-        raw_detections = infer_request_handle.outputs
-        return raw_detections
+        raw_estimations = infer_request_handle.outputs
+        return raw_estimations
 
     def sync_detect(self, batch: np.ndarray) -> Dict[str, np.ndarray]:
         """
@@ -92,15 +94,15 @@ class HeadPoseEstimator:
 
         Returns
         -------
-            detections_arr: the array of detections
+            estimations_arr: the array of estimations
         """
         t1 = cv2.getTickCount()
-        detections = self.exec_net.infer({self.input_blob: batch})
+        estimations = self.exec_net.infer({self.input_blob: batch})
         t2 = cv2.getTickCount()
         logging.info(f'Time taken to execute head pose estimation model = {(t2-t1)/cv2.getTickFrequency()} seconds')
-        return detections
+        return estimations
 
-    def preprocess_input(self, image: np.ndarray, width: int=672, height: int=384, preserve_aspect_ratio: bool=False):
+    def preprocess_input(self, image: np.ndarray, width: int=60, height: int=60, preserve_aspect_ratio: bool=False):
         """
         Before feeding the data into the model for inference,
         you might have to preprocess it. This function is where you can do that.
@@ -138,9 +140,9 @@ class HeadPoseEstimator:
         batch = batch.transpose((2,0,1)) # Channels first
         return batch[np.newaxis, :, :, :], normalization_consts
 
-    def preprocess_output(self, raw_detections: np.ndarray, threshold: float=0.3, whitelist_filter: List[int]=[1], normalization_consts: List[float]=[1.0, 1.0]) -> List[Dict[str, Any]]:
+    def preprocess_output(self, raw_estimations: np.ndarray) -> Dict[str, float]:
         """
-        Change the format of the detections for use by the next model.
+        Change the format of the estimations for use by the next model.
 
         Default model produces a diction with angles in degrees of shape [1, 1]
           * angle_y_fc (yaw)
@@ -149,61 +151,39 @@ class HeadPoseEstimator:
 
         Parameters
         ----------
-            raw_detections: the head pose estimation network output as produced by OpenVINO, an array of detections
-            threshold: discard detections with a score lower than this threshold
-            whitelist_filter: the class ids to include, if empty it includes all of them
+            raw_estimations: the head pose estimation network output as produced by OpenVINO, an array of estimations
 
         Returns
         -------
             detections: a list of detections meeting the criteria
         """
-        logging.info(f'raw detections {raw_detections}')
-        arr = np.concatenate(raw_detections['detection_out'][:, 0, :, :], axis=0)
-        # filter based on threshold
-        arr = arr[arr[:, 2]>threshold, :]
-        #logging.info(arr) #TODO bbox output looks wrong for batch size > 1
-        #logging.info(arr.shape)
-        if whitelist_filter:
-            arr = arr[np.isin(arr[:, 1], whitelist_filter), :]
-        num_detections = arr.shape[0]
-        detections = []
-        for k in range(num_detections):
-            x_min = arr[k, 3] / normalization_consts[0]
-            x_max = arr[k, 5] / normalization_consts[0]
-            y_min = arr[k, 4] / normalization_consts[1]
-            y_max = arr[k, 6] / normalization_consts[1]
-            width = np.abs(x_max - x_min)
-            height = np.abs(y_max - y_min)
-            area = width * height
-            detections.append({'image_id': arr[k, 0],
-                               'label': arr[k, 1],
-                               'conf': arr[k, 2],
-                               'x_min': x_min,
-                               'y_min': y_min,
-                               'x_max': x_max,
-                               'y_max': y_max,
-                               'width': width,
-                               'height': height,
-                               'area': area})
-        logging.info(f'detections {detections}')
-        return detections
+        logging.info(f'raw estimations {raw_estimations}')
+        estimations = {'yaw': np.squeeze(raw_estimations['angle_y_fc']).item(),
+                       'pitch': np.squeeze(raw_estimations['angle_p_fc']).item(),
+                       'roll': np.squeeze(raw_estimations['angle_r_fc']).item()}
+        logging.info(f'processed estimations {estimations}')
+        return estimations
 
-    def visualize_detections(self, image: np.ndarray, detections: List[Dict[str, Any]]) -> np.ndarray:
+    def visualize_estimations(self, image: np.ndarray, estimations: Dict[str, float]) -> np.ndarray:
         img = image.copy()
-        for det in detections:
-            x_min = int(det['x_min'] * img.shape[1])
-            x_max = int(det['x_max'] * img.shape[1])
-            y_min = int(det['y_min'] * img.shape[0])
-            y_max = int(det['y_max'] * img.shape[0])
-            cv2.rectangle(img, (x_min, y_min), (x_max, y_max), (125, 255, 51), thickness=2)
-            cv2.putText(img,
-                     f'score: {det["conf"]:.2f} label: {det["label"]}',
-                     (x_min, y_min),
-                     cv2.FONT_HERSHEY_SIMPLEX,
-                     .5,
-                     (0,0,255),
-                     2,
-                     cv2.LINE_AA)
+        roll = estimations['roll'] * np.pi / 180.0
+        pitch = estimations['pitch'] * np.pi / 180.0
+        yaw = estimations['yaw'] * np.pi / 180.0
+        rvec = (yaw,   roll,  pitch)
+        tvec = (0, 0, 1)
+        points = np.array([[0,0,0],
+                           [1, 0, 0],
+                           [0, 1, 0],
+                           [0, 0, 1]], np.float32)
+        camera_matrix = np.array([[100, 0, image.shape[1]/2.0],
+                                  [0, 100, image.shape[0]/2.0],
+                                  [0,  0, 1]], np.float32)
+        image_points, _ = cv2.projectPoints(points, rvec, tvec, camera_matrix, ())
+        image_points = np.squeeze(image_points)
+        logging.info(f'pose points {image_points}')
+        img = cv2.line(img, tuple(image_points[0, :]), tuple(image_points[1, :]), (255, 0, 0), 5)
+        img = cv2.line(img, tuple(image_points[0, :]), tuple(image_points[2, :]), (0, 255, 0), 5)
+        img = cv2.line(img, tuple(image_points[0, :]), tuple(image_points[3, :]), (0, 0, 255), 5)
         return img
 
 if __name__ == '__main__':
@@ -214,7 +194,7 @@ if __name__ == '__main__':
                         default='data/image_100.png',
                         type=str,
                         help='open video file or image file sequence or a capturing device or an IP video stream for video capturing')
-    parser.add_argument('--detection',
+    parser.add_argument('--pose',
                         default='models/intel/head-pose-estimation-adas-0001/FP32/head-pose-estimation-adas-0001',
                         type=str,
                         help='path to the head pose estimation model')
@@ -244,12 +224,12 @@ if __name__ == '__main__':
     log_level = LEVELS.get(args.log_level, logging.ERROR)
     logging.basicConfig(level=log_level)
 
-    # run the detection network and save the output
+    # run the estimation network and save the output
     image = cv2.imread(args.input)
-    head_pose_est = HeadPoseEstimator(args.detection, args.device)
+    head_pose_est = HeadPoseEstimator(args.pose, args.device)
     batch, _ = head_pose_est.preprocess_input(image)
     dets = head_pose_est.sync_detect(batch)
-    detections = head_pose_est.preprocess_output(dets)
-    img = head_pose_est.visualize_detections(image, detections)
+    estimations = head_pose_est.preprocess_output(dets)
+    img = head_pose_est.visualize_estimations(image, estimations)
     cv2.imwrite(f'{args.output}/head_pose.png', img)
 

@@ -5,6 +5,8 @@ want to revisit some of the assumptions.
 This model can be run independently with the default parameters as:
 python3 src/face_detection.py
 
+python3 src/face_detection.py --input=data/image_100.png --detection=models/intel/face-detection-adas-binary-0001/FP32-INT1/face-detection-adas-binary-0001 --device=CPU --log-level=info
+
 To modify the parameters check the help:
 python3 src/face_detection.py --help
 '''
@@ -238,6 +240,7 @@ class FaceDetector:
             y_max = int(det['y_max'] * img.shape[0])
             face_crops.append(image[y_min:y_max, x_min:x_max, :].copy())
         return face_crops
+
 
 if __name__ == '__main__':
     # parse input arguments
