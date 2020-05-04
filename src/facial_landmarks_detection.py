@@ -113,7 +113,7 @@ class FacialLandmarksDetector:
 
         Parameters
         ----------
-            image: image to run preprocessing on
+            image: image to run preprocessing on, should be a cropped face image
             preserve_aspect_ratio: boolean, https://docs.openvinotoolkit.org/latest/_docs_MO_DG_prepare_model_convert_model_tf_specific_Convert_Object_Detection_API_Models.html specifies for different models
 
         Returns
@@ -158,11 +158,11 @@ class FacialLandmarksDetector:
         logging.info(f'raw detections {raw_detections.keys()}')
         for key, value in raw_detections.items():
             arr = np.squeeze(value)
-            return {'left_eye': {'x': arr[0], 'y': arr[1]},
-                    'right_eye': {'x': arr[2], 'y': arr[3]},
-                    'nose': {'x': arr[4], 'y': arr[5]},
-                    'left_mouth': {'x': arr[6], 'y': arr[7]},
-                    'right_mouth': {'x': arr[8], 'y': arr[9]}
+            return {'left_eye': {'x': arr[0].item(), 'y': arr[1].item()},
+                    'right_eye': {'x': arr[2].item(), 'y': arr[3].item()},
+                    'nose': {'x': arr[4].item(), 'y': arr[5].item()},
+                    'left_mouth': {'x': arr[6].item(), 'y': arr[7].item()},
+                    'right_mouth': {'x': arr[8].item(), 'y': arr[9].item()}
                    }
         return {}
 
@@ -201,6 +201,8 @@ class FacialLandmarksDetector:
 if __name__ == '__main__':
     # parse input arguments
     import argparse
+    import json
+
     parser = argparse.ArgumentParser(description='Estimate facial landmarks in a face image')
     parser.add_argument('--input',
                         default='data/image_100_face.png',
@@ -244,5 +246,8 @@ if __name__ == '__main__':
     detections = flm_det.preprocess_output(dets)
     img = flm_det.visualize_detections(image, detections)
     cv2.imwrite(f'{args.output}/face_landmarks.png', img)
+    print(detections)
+    with open(f'{args.output}/face_landmarks.json', 'w') as f:
+        json.dump(detections, f)
 
 

@@ -111,7 +111,7 @@ class HeadPoseEstimator:
 
         Parameters
         ----------
-            image: image to run preprocessing on
+            image: image to run preprocessing on, should be a cropped face image
             width: desired width
             height: desired height
             preserve_aspect_ratio: boolean, https://docs.openvinotoolkit.org/latest/_docs_MO_DG_prepare_model_convert_model_tf_specific_Convert_Object_Detection_API_Models.html specifies for different models
@@ -189,6 +189,8 @@ class HeadPoseEstimator:
 if __name__ == '__main__':
     # parse input arguments
     import argparse
+    import json
+
     parser = argparse.ArgumentParser(description='Estimate head pose given a cropped face image')
     parser.add_argument('--input',
                         default='data/image_100.png',
@@ -232,4 +234,6 @@ if __name__ == '__main__':
     estimations = head_pose_est.preprocess_output(dets)
     img = head_pose_est.visualize_estimations(image, estimations)
     cv2.imwrite(f'{args.output}/head_pose.png', img)
+    with open(f'{args.output}/head_pose.json', 'w') as f:
+        json.dump(estimations, f)
 
