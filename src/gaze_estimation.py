@@ -10,7 +10,7 @@ python3 src/face_detection.py --help
 '''
 import time
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 import numpy as np
 import cv2
 from openvino.inference_engine import IECore
@@ -46,11 +46,7 @@ class GazeEstimator:
             logging.error("Check whether extensions are available to add to IECore.")
             exit(1)
 
-        # Get the input layer
-        self.input_blob = next(iter(self.exec_net.inputs))
-        self.output_blob = next(iter(self.exec_net.outputs))
-
-    def async_detect(self, batch: np.ndarray):
+    def async_detect(self, inputs: Dict[str, Any]):
         """
         Asynchronously run prediction on a batch with the network
 
@@ -62,7 +58,7 @@ class GazeEstimator:
         -------
             infer_request_handle: the handle for the asynchronous request, needed by async_wait
         """
-        infer_request_handle = self.exec_net.start_async(request_id=0, inputs={self.input_blob: batch})
+        infer_request_handle = self.exec_net.start_async(request_id=0, inputs=inputs)
         return infer_request_handle
 
     def async_wait(self, infer_request_handle):
@@ -82,7 +78,7 @@ class GazeEstimator:
         raw_detections = infer_request_handle.outputs
         return raw_detections
 
-    def sync_detect(self, batch: np.ndarray) -> Dict[str, np.ndarray]:
+    def sync_detect(self, inputs: Dict[str, Any]) -> Dict[str, np.ndarray]:
         """
         Synchronously run prediction on a batch with the network
 
@@ -95,12 +91,50 @@ class GazeEstimator:
             detections_arr: the array of detections
         """
         t1 = cv2.getTickCount()
-        detections = self.exec_net.infer({self.input_blob: batch})
+        detections = self.exec_net.infer(inputs)
         t2 = cv2.getTickCount()
         logging.info(f'Time taken to execute gaze estimation model = {(t2-t1)/cv2.getTickFrequency()} seconds')
         return detections
 
-    def preprocess_input(self, image: np.ndarray, width: int=672, height: int=384, preserve_aspect_ratio: bool=False):
+    def crop_eye(self, image: np.ndarray, center: Tuple[float, float], width: int=60, height: int=60):
+        """
+        crops the eye based on eye center location, since we don't have information about the size
+        of the eye which would be impacted by resolution of the image and distance from the camera,
+        we are crossing our fingers and hoping it works
+
+        Parameters
+        ----------
+            image: high resolution image
+            center: the (x, y) coordinates of the eye
+            width: the desired width of the cropped eye
+            height: the desired height of the cropped eye
+
+        Returns
+        -------
+            crop: the cropped eye
+        """
+        cv2.imwrite('pre_eye_crop.png', image)
+        h = int(height/2)
+        w = int(width/2)
+        # pad so can crop without worrying about being too close to edges
+        padded = cv2.copyMakeBorder(image, h, h, w, w, cv2.BORDER_REFLECT_101)
+        try:
+            logging.info(f'cropping eye from {int(center[1]-height/2)} to {int(center[1]+height/2)}' + \
+                         f' and {int(center[0]-width/2)} to {int(center[0]+width/2)}')
+            logging.info(f'cropping padded eye from {int(center[1])} to {int(center[1]+height)}' + \
+                         f' and {int(center[0])} to {int(center[0]+width)}')
+            crop = padded[int(center[1]):int(center[1] + height),
+                         int(center[0]):int(center[0] + width),
+                         :]
+        except:
+            raise ValueError('One or more of the inputs were not supported, perhaps the eyes are too close to the edge of the image or the input image was too small')
+        if crop.shape[0] != height or crop.shape[1] != width:
+            raise ValueError(f'The crop was the wrong size {crop.shape} desired {height}x{width}')
+        cv2.imwrite('eye_crop.png', crop)
+        crop = crop.transpose((2,0,1)) # Channels first
+        return crop[np.newaxis, :, :, :]
+
+    def preprocess_input(self, image: np.ndarray, landmarks: Dict[str, Dict[str, float]], pose: Dict[str, float]) -> Dict[str, Any]:
         """
         Before feeding the data into the model for inference,
         you might have to preprocess it. This function is where you can do that.
@@ -109,36 +143,24 @@ class GazeEstimator:
 
         Parameters
         ----------
-            image: image to run preprocessing on
-            width: desired width
-            height: desired height
-            preserve_aspect_ratio: boolean, https://docs.openvinotoolkit.org/latest/_docs_MO_DG_prepare_model_convert_model_tf_specific_Convert_Object_Detection_API_Models.html specifies for different models
+            image: image to run preprocessing on, should be the full resolution face cropped image
+            landmarks: the facial landmarks
+            pose: the head pose
 
         Returns
         -------
-            batch: with preprocessing applied
-            normalization_consts: ratio of the image pixels to image with padding
+            left_eye, right_eye, head_direction_vector: the inputs needed by the model
         """
-        normalization_consts = [1.0, 1.0]
-        if preserve_aspect_ratio:
-            rows, cols, _ = image.shape
-            fx = height * 1.0 / cols
-            fy = width * 1.0 / rows
-            if fx < fy:
-                fy = fx
-            else:
-                fx = fy
-            resized = cv2.resize(image.copy(), (0, 0), fx=fx, fy=fy)
-            batch = np.zeros((height, width, 3), np.uint8)
-            normalization_consts = [resized.shape[1] * 1.0 / batch.shape[1],
-                                    resized.shape[0] * 1.0 / batch.shape[0]]
-            batch[:resized.shape[0], :resized.shape[1], :] = resized
-        else:
-            batch = cv2.resize(image.copy(), (width, height))
-        batch = batch.transpose((2,0,1)) # Channels first
-        return batch[np.newaxis, :, :, :], normalization_consts
+        left_eye = self.crop_eye(image, (landmarks['left_eye']['x']*image.shape[1], landmarks['left_eye']['y']*image.shape[0]))
+        right_eye = self.crop_eye(image, (landmarks['right_eye']['x']*image.shape[1], landmarks['right_eye']['y']*image.shape[0]))
+        head_direction_vector = [pose['yaw'], pose['pitch'], pose['roll']]
+        # keys are specified by the models input layers
+        inputs = {'head_pose_angles': head_direction_vector,
+                  'left_eye_image': left_eye,
+                  'right_eye_image': right_eye}
+        return inputs
 
-    def preprocess_output(self, raw_detections: np.ndarray, threshold: float=0.3, whitelist_filter: List[int]=[1], normalization_consts: List[float]=[1.0, 1.0]) -> List[Dict[str, Any]]:
+    def preprocess_output(self, raw_detections: np.ndarray) -> List[Dict[str, Any]]:
         """
         Change the format of the detections for use by the next model.
 
@@ -146,71 +168,65 @@ class GazeEstimator:
 
         Parameters
         ----------
-            raw_detections: the gaze estimation network output as produced by OpenVINO, an array of detections
-            threshold: discard detections with a score lower than this threshold
-            whitelist_filter: the class ids to include, if empty it includes all of them
+            raw_detections: the gaze estimation network output as produced by OpenVINO
 
         Returns
         -------
             detections: a list of detections meeting the criteria
         """
         logging.info(f'raw detections {raw_detections}')
-        arr = np.concatenate(raw_detections['detection_out'][:, 0, :, :], axis=0)
-        # filter based on threshold
-        arr = arr[arr[:, 2]>threshold, :]
-        #logging.info(arr) #TODO bbox output looks wrong for batch size > 1
-        #logging.info(arr.shape)
-        if whitelist_filter:
-            arr = arr[np.isin(arr[:, 1], whitelist_filter), :]
-        num_detections = arr.shape[0]
-        detections = []
-        for k in range(num_detections):
-            x_min = arr[k, 3] / normalization_consts[0]
-            x_max = arr[k, 5] / normalization_consts[0]
-            y_min = arr[k, 4] / normalization_consts[1]
-            y_max = arr[k, 6] / normalization_consts[1]
-            width = np.abs(x_max - x_min)
-            height = np.abs(y_max - y_min)
-            area = width * height
-            detections.append({'image_id': arr[k, 0],
-                               'label': arr[k, 1],
-                               'conf': arr[k, 2],
-                               'x_min': x_min,
-                               'y_min': y_min,
-                               'x_max': x_max,
-                               'y_max': y_max,
-                               'width': width,
-                               'height': height,
-                               'area': area})
-        logging.info(f'detections {detections}')
-        return detections
+        gaze_vec = {'x': raw_detections['gaze_vector'][0][0].item(),
+                    'y': raw_detections['gaze_vector'][0][1].item(),
+                    'z': raw_detections['gaze_vector'][0][2].item()}
+        return gaze_vec
 
-    def visualize_detections(self, image: np.ndarray, detections: List[Dict[str, Any]]) -> np.ndarray:
+    def visualize_gaze(self, image: np.ndarray, gaze_vec: List[Dict[str, float]], landmarks: Dict[str, Dict[str, float]]) -> np.ndarray:
         img = image.copy()
-        for det in detections:
-            x_min = int(det['x_min'] * img.shape[1])
-            x_max = int(det['x_max'] * img.shape[1])
-            y_min = int(det['y_min'] * img.shape[0])
-            y_max = int(det['y_max'] * img.shape[0])
-            cv2.rectangle(img, (x_min, y_min), (x_max, y_max), (125, 255, 51), thickness=2)
-            cv2.putText(img,
-                     f'score: {det["conf"]:.2f} label: {det["label"]}',
-                     (x_min, y_min),
-                     cv2.FONT_HERSHEY_SIMPLEX,
-                     .5,
-                     (0,0,255),
-                     2,
-                     cv2.LINE_AA)
+        left_eye = (int(landmarks['left_eye']['x']*img.shape[1]),
+                    int(landmarks['left_eye']['y']*img.shape[0]))
+        left_eye_gaze = (int(landmarks['left_eye']['x']*img.shape[1] + 100 * gaze_vec['x']),
+                         int(landmarks['left_eye']['y']*img.shape[0] + 100 * gaze_vec['y']))
+
+        #right_eye = landmarks['left_eye']['x']*img.shape[1]
+        img = cv2.line(img, left_eye, left_eye_gaze, (255, 0, 0), 5)
+        #gaze_vec['x']
+        #gaze_vec['y']
+        #gaze_vec['z']
+
+        #for det in detections:
+        #    x_min = int(det['x_min'] * img.shape[1])
+        #    x_max = int(det['x_max'] * img.shape[1])
+        #    y_min = int(det['y_min'] * img.shape[0])
+        #    y_max = int(det['y_max'] * img.shape[0])
+        #    cv2.rectangle(img, (x_min, y_min), (x_max, y_max), (125, 255, 51), thickness=2)
+        #    cv2.putText(img,
+        #             f'score: {det["conf"]:.2f} label: {det["label"]}',
+        #             (x_min, y_min),
+        #             cv2.FONT_HERSHEY_SIMPLEX,
+        #             .5,
+        #             (0,0,255),
+        #             2,
+        #             cv2.LINE_AA)
         return img
 
 if __name__ == '__main__':
     # parse input arguments
     import argparse
+    import json
+
     parser = argparse.ArgumentParser(description='Estimate gaze')
     parser.add_argument('--input',
-                        default='data/image_100.png',
+                        default='data/image_100_face.png',
                         type=str,
-                        help='open video file or image file sequence or a capturing device or an IP video stream for video capturing')
+                        help='path to an image')
+    parser.add_argument('--input-landmarks',
+                        default='data/image_100_face_landmarks.json',
+                        type=str,
+                        help='path to the facial landmark json file')
+    parser.add_argument('--input-pose',
+                        default='data/image_100_head_pose.json',
+                        type=str,
+                        help='path to the head pose json file')
     parser.add_argument('--detection',
                         default='models/intel/gaze-estimation-adas-0002/FP32/gaze-estimation-adas-0002',
                         type=str,
@@ -243,11 +259,16 @@ if __name__ == '__main__':
 
     # run the detection network and save the output
     image = cv2.imread(args.input)
+    with open(args.input_landmarks, 'r') as f:
+        landmarks = json.load(f)
+    with open(args.input_pose, 'r') as f:
+        pose = json.load(f)
     gaze_est = GazeEstimator(args.detection, args.device)
-    batch, _ = gaze_est.preprocess_input(image)
-    dets = gaze_est.sync_detect(batch)
-    detections = gaze_est.preprocess_output(dets)
-    img = gaze_est.visualize_detections(image, detections)
+    inputs = gaze_est.preprocess_input(image, landmarks, pose)
+    dets = gaze_est.sync_detect(inputs)
+    gaze_vec = gaze_est.preprocess_output(dets)
+    img = gaze_est.visualize_gaze(image, gaze_vec, landmarks)
     cv2.imwrite(f'{args.output}/gaze_est.png', img)
-
+    with open(f'{args.output}/gaze_vec.json', 'w') as f:
+        json.dump(gaze_vec, f)
 
