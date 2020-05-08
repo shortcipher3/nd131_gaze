@@ -140,7 +140,7 @@ class FaceDetector:
         batch = batch.transpose((2,0,1)) # Channels first
         return batch[np.newaxis, :, :, :], normalization_consts
 
-    def preprocess_output(self, raw_detections: np.ndarray, threshold: float=0.3, whitelist_filter: List[int]=[1], normalization_consts: List[float]=[1.0, 1.0]) -> List[Dict[str, Any]]:
+    def preprocess_output(self, raw_detections: np.ndarray, threshold: float=0.5, whitelist_filter: List[int]=[1], normalization_consts: List[float]=[1.0, 1.0]) -> List[Dict[str, Any]]:
         """
         Change the format of the detections for use by the next model.
 
@@ -195,7 +195,7 @@ class FaceDetector:
 
         Parameters
         ----------
-            image: the original image
+            image: the original image, or any scaled version
             detections: the processed detections
 
         Returns
@@ -225,7 +225,7 @@ class FaceDetector:
 
         Parameters
         ----------
-            image: the original image
+            image: the original image, or any scaled version
             detections: the processed detections
 
         Returns
@@ -234,10 +234,10 @@ class FaceDetector:
         """
         face_crops: List[np.ndarray] = []
         for det in detections:
-            x_min = int(det['x_min'] * img.shape[1])
-            x_max = int(det['x_max'] * img.shape[1])
-            y_min = int(det['y_min'] * img.shape[0])
-            y_max = int(det['y_max'] * img.shape[0])
+            x_min = int(det['x_min'] * image.shape[1])
+            x_max = int(det['x_max'] * image.shape[1])
+            y_min = int(det['y_min'] * image.shape[0])
+            y_max = int(det['y_max'] * image.shape[0])
             face_crops.append(image[y_min:y_max, x_min:x_max, :].copy())
         return face_crops
 

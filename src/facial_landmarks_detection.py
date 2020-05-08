@@ -12,7 +12,7 @@ python3 src/facial_landmarks_detection.py --help
 '''
 import time
 import logging
-from typing import Dict
+from typing import Dict, Any
 import numpy as np
 import cv2
 from openvino.inference_engine import IECore
@@ -197,6 +197,21 @@ class FacialLandmarksDetector:
                    5, [0, 75, 255], -1)
         return img
 
+    def convert_to_full_frame_coordinates(self, detections: Dict[str, Dict[str, float]], face_coordinates: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
+        def adjust_coord(coord, face_min, length):
+            return face_min + coord * length
+        out = {'left_eye': {'x': adjust_coord(detections['left_eye']['x'], face_coordinates['x_min'], face_coordinates['width']),
+                            'y': adjust_coord(detections['left_eye']['y'], face_coordinates['y_min'], face_coordinates['height'])},
+               'right_eye': {'x': adjust_coord(detections['right_eye']['x'], face_coordinates['x_min'], face_coordinates['width']),
+                             'y': adjust_coord(detections['right_eye']['y'], face_coordinates['y_min'], face_coordinates['height'])},
+               'nose': {'x': adjust_coord(detections['nose']['x'], face_coordinates['x_min'], face_coordinates['width']),
+                        'y': adjust_coord(detections['nose']['y'], face_coordinates['y_min'], face_coordinates['height'])},
+               'left_mouth': {'x': adjust_coord(detections['left_mouth']['x'], face_coordinates['x_min'], face_coordinates['width']),
+                              'y': adjust_coord(detections['left_mouth']['y'], face_coordinates['y_min'], face_coordinates['height'])},
+               'right_mouth': {'x': adjust_coord(detections['right_mouth']['x'], face_coordinates['x_min'], face_coordinates['width']),
+                               'y': adjust_coord(detections['right_mouth']['y'], face_coordinates['y_min'], face_coordinates['height'])},
+        }
+        return out
 
 if __name__ == '__main__':
     # parse input arguments
