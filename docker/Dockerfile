@@ -41,11 +41,12 @@ RUN curl -LOJ "${DOWNLOAD_LINK}" && \
 # Additional requirements as specified by the provided starter
 
 # ENVIRONMENT SETUP
-COPY starter $WORKSPACE/
+COPY nd131_gaze $WORKSPACE/
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     python3-dev \
+    python3-tk \
     python3-pip \
     python3-setuptools \
     libzmq3-dev \
@@ -57,6 +58,7 @@ RUN apt-get update \
     numpy \
     opencv-python-headless \
     tensorflow \
+    pyautogui \
     pyyaml \
     ipython \
   && pip3 install -r $WORKSPACE/requirements.txt \
