@@ -25,9 +25,17 @@ class InputFeeder:
             vc = cv2.VideoCapture(int(video_stream))
         except:
             vc = cv2.VideoCapture(video_stream)
+        if not vc.isOpened():
+            raise IOError("Unable to read the specified video stream " + video_stream)
         self.vc = vc
         self.frame_count = 0
         self.frame = None
+
+    def get_shape(self):
+        return int(self.vc.get(cv2.CAP_PROP_FRAME_WIDTH)), int(self.vc.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    def get_fps(self):
+        return self.vc.get(cv2.CAP_PROP_FPS)
 
     def __next__(self):
         '''

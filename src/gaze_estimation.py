@@ -182,31 +182,21 @@ class GazeEstimator:
 
     def visualize_gaze(self, image: np.ndarray, gaze_vec: List[Dict[str, float]], landmarks: Dict[str, Dict[str, float]]) -> np.ndarray:
         img = image.copy()
+        # add the x vector and subtract the y vector, image coordinates x increases to the right
+        # and y increases going down, guessing the gaze is using standard math coordinate system
+        # where y increases going up
         left_eye = (int(landmarks['left_eye']['x']*img.shape[1]),
                     int(landmarks['left_eye']['y']*img.shape[0]))
         left_eye_gaze = (int(landmarks['left_eye']['x']*img.shape[1] + 100 * gaze_vec['x']),
-                         int(landmarks['left_eye']['y']*img.shape[0] + 100 * gaze_vec['y']))
+                         int(landmarks['left_eye']['y']*img.shape[0] - 100 * gaze_vec['y']))
 
-        #right_eye = landmarks['left_eye']['x']*img.shape[1]
+        right_eye = (int(landmarks['right_eye']['x']*img.shape[1]),
+                     int(landmarks['right_eye']['y']*img.shape[0]))
+        right_eye_gaze = (int(landmarks['right_eye']['x']*img.shape[1] + 100 * gaze_vec['x']),
+                          int(landmarks['right_eye']['y']*img.shape[0] - 100 * gaze_vec['y']))
         img = cv2.line(img, left_eye, left_eye_gaze, (255, 0, 0), 5)
-        #gaze_vec['x']
-        #gaze_vec['y']
-        #gaze_vec['z']
+        img = cv2.line(img, right_eye, right_eye_gaze, (0, 0, 255), 5)
 
-        #for det in detections:
-        #    x_min = int(det['x_min'] * img.shape[1])
-        #    x_max = int(det['x_max'] * img.shape[1])
-        #    y_min = int(det['y_min'] * img.shape[0])
-        #    y_max = int(det['y_max'] * img.shape[0])
-        #    cv2.rectangle(img, (x_min, y_min), (x_max, y_max), (125, 255, 51), thickness=2)
-        #    cv2.putText(img,
-        #             f'score: {det["conf"]:.2f} label: {det["label"]}',
-        #             (x_min, y_min),
-        #             cv2.FONT_HERSHEY_SIMPLEX,
-        #             .5,
-        #             (0,0,255),
-        #             2,
-        #             cv2.LINE_AA)
         return img
 
 if __name__ == '__main__':
@@ -227,7 +217,7 @@ if __name__ == '__main__':
                         default='data/image_100_head_pose.json',
                         type=str,
                         help='path to the head pose json file')
-    parser.add_argument('--detection',
+    parser.add_argument('--gaze',
                         default='models/intel/gaze-estimation-adas-0002/FP32/gaze-estimation-adas-0002',
                         type=str,
                         help='path to the gaze estimation model')
@@ -263,7 +253,7 @@ if __name__ == '__main__':
         landmarks = json.load(f)
     with open(args.input_pose, 'r') as f:
         pose = json.load(f)
-    gaze_est = GazeEstimator(args.detection, args.device)
+    gaze_est = GazeEstimator(args.gaze, args.device)
     inputs = gaze_est.preprocess_input(image, landmarks, pose)
     dets = gaze_est.sync_detect(inputs)
     gaze_vec = gaze_est.preprocess_output(dets)
