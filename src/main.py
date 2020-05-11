@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    mc = MouseController('medium', 'medium')
+    mc = MouseController('high', 'fast')
 
     face_det = FaceDetector(args.detection, args.device)
     flm_det = FacialLandmarksDetector(args.landmarks, args.device)
@@ -59,6 +59,7 @@ if __name__ == '__main__':
     if args.visualize:
         vw = cv2.VideoWriter(args.output + '/debug.mp4', cv2.VideoWriter_fourcc(*'avc1'), inp.get_fps(), inp.get_shape(), True)
 
+    cv2.namedWindow('gaze')
     for frame in inp:
         fd_batch, _ = face_det.preprocess_input(frame)
         face_dets = face_det.sync_detect(fd_batch)
@@ -73,6 +74,10 @@ if __name__ == '__main__':
         if not face_detection:
             if args.visualize:
                 vw.write(frame)
+            cv2.imshow('gaze', frame)
+            cv2.waitKey(25)
+            #plt.imshow(frame[:, :, ::-1])
+            #plt.show()
             continue
 
         flm_batch, _ = flm_det.preprocess_input(largest_face)
@@ -95,6 +100,12 @@ if __name__ == '__main__':
             visualize = head_pose_est.visualize_estimations(visualize, pose_estimations)
             visualize = gaze_est.visualize_gaze(visualize, gaze_vec, flm_detections)
             vw.write(visualize)
+        else:
+            visualize = frame
+        cv2.imshow('gaze', visualize)
+        cv2.waitKey(25)
+        mc.move(gaze_vec['x'], gaze_vec['y'])
     if args.visualize:
         vw.release()
+    cv2.destroyAllWindows()
 

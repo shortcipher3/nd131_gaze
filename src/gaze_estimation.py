@@ -113,7 +113,6 @@ class GazeEstimator:
         -------
             crop: the cropped eye
         """
-        cv2.imwrite('pre_eye_crop.png', image)
         h = int(height/2)
         w = int(width/2)
         # pad so can crop without worrying about being too close to edges
@@ -130,7 +129,6 @@ class GazeEstimator:
             raise ValueError('One or more of the inputs were not supported, perhaps the eyes are too close to the edge of the image or the input image was too small')
         if crop.shape[0] != height or crop.shape[1] != width:
             raise ValueError(f'The crop was the wrong size {crop.shape} desired {height}x{width}')
-        cv2.imwrite('eye_crop.png', crop)
         crop = crop.transpose((2,0,1)) # Channels first
         return crop[np.newaxis, :, :, :]
 
@@ -160,7 +158,7 @@ class GazeEstimator:
                   'right_eye_image': right_eye}
         return inputs
 
-    def preprocess_output(self, raw_detections: np.ndarray) -> List[Dict[str, Any]]:
+    def preprocess_output(self, raw_detections: np.ndarray) -> Dict[str, Any]:
         """
         Change the format of the detections for use by the next model.
 
@@ -180,7 +178,7 @@ class GazeEstimator:
                     'z': raw_detections['gaze_vector'][0][2].item()}
         return gaze_vec
 
-    def visualize_gaze(self, image: np.ndarray, gaze_vec: List[Dict[str, float]], landmarks: Dict[str, Dict[str, float]]) -> np.ndarray:
+    def visualize_gaze(self, image: np.ndarray, gaze_vec: Dict[str, float], landmarks: Dict[str, Dict[str, float]]) -> np.ndarray:
         img = image.copy()
         # add the x vector and subtract the y vector, image coordinates x increases to the right
         # and y increases going down, guessing the gaze is using standard math coordinate system

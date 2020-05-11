@@ -53,10 +53,13 @@ RUN apt-get update \
     libkrb5-dev \
     ffmpeg \
     cmake \
+    libcanberra-gtk-module \
+    libcanberra-gtk3-module \
+    packagekit-gtk3-module \
     vim \
   && pip3 install \
     numpy \
-    opencv-python-headless \
+    opencv-python \
     tensorflow \
     pyautogui \
     pyyaml \
