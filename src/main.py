@@ -12,7 +12,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Use computer vision to control your mouse position with your gaze')
     parser.add_argument('--input',
-                        default='bin/demo.mp4',
+                        default='data/demo.mp4',
                         type=str,
                         help='open video file or image file sequence or a capturing device or an IP video stream for video capturing')
     parser.add_argument('--device',
@@ -76,8 +76,6 @@ if __name__ == '__main__':
                 vw.write(frame)
             cv2.imshow('gaze', frame)
             cv2.waitKey(25)
-            #plt.imshow(frame[:, :, ::-1])
-            #plt.show()
             continue
 
         flm_batch, _ = flm_det.preprocess_input(largest_face)

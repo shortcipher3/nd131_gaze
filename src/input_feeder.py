@@ -63,7 +63,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Extract n frames from a video source')
     parser.add_argument('--input',
-                        default='bin/demo.mp4',
+                        default='data/demo.mp4',
                         type=str,
                         help='open video file or image file sequence or a capturing device or an IP video stream for video capturing')
     parser.add_argument('--frames',

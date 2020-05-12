@@ -11,7 +11,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Use computer vision to control your mouse position with your gaze')
     parser.add_argument('--input',
-                        default='bin/demo.mp4',
+                        default='data/demo.mp4',
                         type=str,
                         help='open video file or image file sequence or a capturing device or an IP video stream for video capturing')
     parser.add_argument('--device',
