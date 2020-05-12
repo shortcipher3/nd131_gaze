@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 import cv2
 
@@ -44,8 +45,22 @@ if __name__ == '__main__':
                         default='output',
                         type=str,
                         help='output directory to save results')
+    parser.add_argument('--log-level',
+                        default='error',
+                        type=str,
+                        choices=['debug', 'info', 'warning', 'error', 'critical'],
+                        help='the log level, one of debug, info, warning, error, critical')
 
     args = parser.parse_args()
+
+    # set log level
+    LEVELS = {'debug': logging.DEBUG,
+              'info': logging.INFO,
+              'warning': logging.WARNING,
+              'error': logging.ERROR,
+              'critical': logging.CRITICAL}
+    log_level = LEVELS.get(args.log_level, logging.ERROR)
+    logging.basicConfig(level=log_level)
 
     mc = MouseController('high', 'fast')
 

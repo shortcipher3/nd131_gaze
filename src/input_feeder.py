@@ -70,6 +70,10 @@ if __name__ == '__main__':
                         default=10,
                         type=int,
                         help='number of frames to extract')
+    parser.add_argument('--output',
+                        default='output',
+                        type=str,
+                        help='output directory to save results')
 
     args = parser.parse_args()
 
@@ -77,7 +81,7 @@ if __name__ == '__main__':
 
     for k in range(args.frames):
         frame = next(inp)
-        cv2.imwrite(f'image_{k:03}.png', frame)
+        cv2.imwrite(f'{args.output}/image_{k:03}.png', frame)
 
 
 

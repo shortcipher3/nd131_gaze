@@ -193,7 +193,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Estimate head pose given a cropped face image')
     parser.add_argument('--input',
-                        default='data/image_100.png',
+                        default='data/image_100_face.png',
                         type=str,
                         help='open video file or image file sequence or a capturing device or an IP video stream for video capturing')
     parser.add_argument('--pose',
