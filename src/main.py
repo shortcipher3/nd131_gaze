@@ -9,7 +9,7 @@ from gaze_estimation import GazeEstimator
 from mouse_controller import MouseController
 from input_feeder import InputFeeder
 
-if __name__ == '__main__':
+def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description='Use computer vision to control your mouse position with your gaze')
     parser.add_argument('--input',
@@ -52,7 +52,10 @@ if __name__ == '__main__':
                         help='the log level, one of debug, info, warning, error, critical')
 
     args = parser.parse_args()
+    return args
 
+
+def main(args):
     # set log level
     LEVELS = {'debug': logging.DEBUG,
               'info': logging.INFO,
@@ -122,3 +125,6 @@ if __name__ == '__main__':
         vw.release()
     cv2.destroyAllWindows()
 
+if __name__ == '__main__':
+    args = parse_args()
+    main(args)

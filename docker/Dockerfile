@@ -64,6 +64,7 @@ RUN apt-get update \
     pyautogui \
     pyyaml \
     ipython \
+    line_profiler \
   && pip3 install -r $WORKSPACE/requirements.txt \
   && echo "source /opt/intel/openvino/bin/setupvars.sh" >> /root/.bashrc
 
