@@ -18,6 +18,7 @@ Steps:
 ```
 xhost +
 docker run --rm -ti -v ~/.Xauthority:/root/.Xauthority:rw --env "DISPLAY" --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" --net=host shortcipher3/gaze
+python3 src/main.py
 ```
 
 ### Dockerless setup
@@ -49,6 +50,9 @@ pip install -r requirements.txt
 ```
 python3 src/main.py
 ```
+
+### Building the docker image
+docker build -t shortcipher3/gaze -f nd131_gaze/docker/Dockerfile --build-arg DOWNLOAD_LINK=http://registrationcenter-download.intel.com/akdlm/irc_nas/16612/l_openvino_toolkit_p_2020.2.120.tgz .
 
 ### Directory Structure
 The model files are stored in the models directory.
