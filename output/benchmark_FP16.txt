@@ -1,0 +1,77 @@
+Timer unit: 1e-06 s
+
+Total time: 745.813 s
+File: src/main.py
+Function: main at line 58
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    58                                           def main(args):
+    59                                               # set log level
+    60         1          4.0      4.0      0.0      LEVELS = {'debug': logging.DEBUG,
+    61         1          3.0      3.0      0.0                'info': logging.INFO,
+    62         1          2.0      2.0      0.0                'warning': logging.WARNING,
+    63         1          2.0      2.0      0.0                'error': logging.ERROR,
+    64         1          3.0      3.0      0.0                'critical': logging.CRITICAL}
+    65         1          4.0      4.0      0.0      log_level = LEVELS.get(args.log_level, logging.ERROR)
+    66         1         23.0     23.0      0.0      logging.basicConfig(level=log_level)
+    67                                           
+    68         1         36.0     36.0      0.0      mc = MouseController('high', 'fast')
+    69                                           
+    70         1     583670.0 583670.0      0.1      face_det = FaceDetector(args.detection, args.device)
+    71         1     251583.0 251583.0      0.0      flm_det = FacialLandmarksDetector(args.landmarks, args.device)
+    72         1     292552.0 292552.0      0.0      head_pose_est = HeadPoseEstimator(args.pose, args.device)
+    73         1     360563.0 360563.0      0.0      gaze_est = GazeEstimator(args.gaze, args.device)
+    74                                           
+    75         1      53039.0  53039.0      0.0      inp = InputFeeder(args.input)
+    76                                           
+    77         1          6.0      6.0      0.0      if args.visualize:
+    78                                                   vw = cv2.VideoWriter(args.output + '/debug.mp4', cv2.VideoWriter_fourcc(*'avc1'), inp.get_fps(), inp.get_shape(), True)
+    79                                           
+    80         1       3163.0   3163.0      0.0      cv2.namedWindow('gaze')
+    81       596    3595623.0   6032.9      0.5      for frame in inp:
+    82       595    1122897.0   1887.2      0.2          fd_batch, _ = face_det.preprocess_input(frame)
+    83       595   19445614.0  32681.7      2.6          face_dets = face_det.sync_detect(fd_batch)
+    84       595    1774863.0   2983.0      0.2          face_detections = face_det.preprocess_output(face_dets)
+    85                                                   # there could be multiple faces detected, choose the largest
+    86       595       7364.0     12.4      0.0          largest_face = np.array((0, 0))
+    87       595       3323.0      5.6      0.0          face_detection = None
+    88      1190      70407.0     59.2      0.0          for k, crop in enumerate(face_det.crop_face(frame, face_detections)):
+    89       595       2582.0      4.3      0.0              if crop.size > largest_face.size:
+    90       595       1517.0      2.5      0.0                  largest_face = crop
+    91       595       1323.0      2.2      0.0                  face_detection = face_detections[k]
+    92       595       1495.0      2.5      0.0          if not face_detection:
+    93                                                       if args.visualize:
+    94                                                           vw.write(frame)
+    95                                                       cv2.imshow('gaze', frame)
+    96                                                       cv2.waitKey(25)
+    97                                                       continue
+    98                                           
+    99       595      63747.0    107.1      0.0          flm_batch, _ = flm_det.preprocess_input(largest_face)
+   100       595     928480.0   1560.5      0.1          flm_dets = flm_det.sync_detect(flm_batch)
+   101       595    1244078.0   2090.9      0.2          flm_detections = flm_det.preprocess_output(flm_dets)
+   102                                           
+   103       595      90889.0    152.8      0.0          pose_batch, _ = head_pose_est.preprocess_input(largest_face)
+   104       595    2028980.0   3410.1      0.3          pose_ests = head_pose_est.sync_detect(pose_batch)
+   105       595    1476267.0   2481.1      0.2          pose_estimations = head_pose_est.preprocess_output(pose_ests)
+   106                                           
+   107       595     248171.0    417.1      0.0          gaze_inputs = gaze_est.preprocess_input(largest_face, flm_detections, pose_estimations)
+   108       595    2564476.0   4310.0      0.3          gaze_dets = gaze_est.sync_detect(gaze_inputs)
+   109       595     629471.0   1057.9      0.1          gaze_vec = gaze_est.preprocess_output(gaze_dets)
+   110                                           
+   111       595       2897.0      4.9      0.0          if args.visualize:
+   112                                                       visualize = frame.copy()
+   113                                                       visualize = face_det.visualize_detections(visualize, face_detections)
+   114                                                       flm_detections = flm_det.convert_to_full_frame_coordinates(flm_detections, face_detection)
+   115                                                       visualize = flm_det.visualize_detections(visualize, flm_detections)
+   116                                                       visualize = head_pose_est.visualize_estimations(visualize, pose_estimations)
+   117                                                       visualize = gaze_est.visualize_gaze(visualize, gaze_vec, flm_detections)
+   118                                                       vw.write(visualize)
+   119                                                   else:
+   120       595       7352.0     12.4      0.0              visualize = frame
+   121       595     708925.0   1191.5      0.1          cv2.imshow('gaze', visualize)
+   122       595   15317316.0  25743.4      2.1          cv2.waitKey(25)
+   123       595  692927599.0 1164584.2     92.9          mc.move(gaze_vec['x'], gaze_vec['y'])
+   124         1          3.0      3.0      0.0      if args.visualize:
+   125                                                   vw.release()
+   126         1       2426.0   2426.0      0.0      cv2.destroyAllWindows()
